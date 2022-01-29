@@ -46,10 +46,13 @@ function includeOnlyCurrentAppKeys() {
   
   currentAppUserId=$(findCurrentAppUserId "${packageName}") 
   
-  # TODO do these filters also work for rclone?
-  #if [[ "${RCLONE}" == 'true' ]]; then
-  #else 
-  echo  --include='*/' --include "*${currentAppUserId}*" --exclude='*'
+  if [[ "${RCLONE}" == 'true' ]]; then
+    # rsync rule causes error, so use '--exclude **' implied by rclone on --include. 
+    # ERROR : Using --filter is recommended instead of both --include and --exclude as the order they are parsed in is indeterminate
+    echo --include "*${currentAppUserId}*"
+  else 
+    echo  --include='*/' --include "*${currentAppUserId}*" --exclude='*'
+  fi
 }
 
 function findCurrentAppUserId() {
@@ -146,8 +149,8 @@ function backupFolderSyncArgs() {
 
 function includeOnlyApk() {
   if [[ "${RCLONE}" == 'true' ]]; then
-    # Avoid fuss with whitespaces inside the filter rules by importing them from a file 
-    echo --filter-from="${LIB_DIR}/rclone-apk-filter.txt"
+    # rclone implies '--exclude **' on include
+    echo --include='*.apk'
   else 
     echo -m --include='*/' --include='*.apk' --exclude='*'
   fi
