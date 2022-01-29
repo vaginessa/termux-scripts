@@ -14,11 +14,16 @@ function backupApp() {
     # Backing up to /sdcard/data and /sdcard/media would have been more intuitive
     # But: media was added later and migrating data would be too much effort for me right now
     backupFolder "/sdcard/Android/media/${packageName}" "${baseDestFolder}/sdcard-media/"
+    
+    trace "Syncing Keys for app ${packageName} from ${KEYSTORE_FOLDER} to ${baseDestFolder}/keys/"
+    # shellcheck disable=SC2046 
+    # This might return multiple parameters that we don't want quoted here
+    doSync "${KEYSTORE_FOLDER}/" "${baseDestFolder}/keys/" $(includeOnlyCurrentAppKeys "${packageName}")
   fi
 
   if [[ "${DATA}" != 'true' ]]; then
     # Backup all APKs from path (can be multiple for split-apks!)
-    apkPath=$(dirname "$(sudo pm path "$packageName" | head -n1 | sed 's/package://')")
+    apkPath=$(dirname "$(sudo pm path "${packageName}" | head -n1 | sed 's/package://')")
     # Only sync APKs, libs, etc are extracted during install
     # shellcheck disable=SC2046 
     # This might return multiple parameters that we don't want quoted here
@@ -36,6 +41,24 @@ function backupFolder() {
   fi
 }
 
+function includeOnlyCurrentAppKeys() {
+  packageName="$1"
+  
+  currentAppUserId=$(findCurrentAppUserId "${packageName}") 
+  
+  # TODO do these filters also work for rclone?
+  #if [[ "${RCLONE}" == 'true' ]]; then
+  #else 
+  echo  --include='*/' --include "*${currentAppUserId}*" --exclude='*'
+}
+
+function findCurrentAppUserId() {
+  local packageName="$1"
+  
+  sudo grep "${packageName}" /data/system/packages.xml | \
+        grep userId | sed 's/.*userId="\([0-9]*\).*/\1/'
+}
+
 function restoreApp() {
   local rootSrcFolder="$1"
   # For now just assume folder name = package name. Reading from apk would be more defensive... and effort.
@@ -46,8 +69,8 @@ function restoreApp() {
   fi
 
   if [[ "${APK}" != 'true' ]]; then
-    user=$(stat -c '%U' "/data/data/$packageName")
-    group=$(stat -c '%G' "/data/data/$packageName")
+    user=$(stat -c '%U' "/data/data/${packageName}")
+    group=$(stat -c '%G' "/data/data/${packageName}")
   
     restoreFolder "${rootSrcFolder}" "data" "/data/data"
   
@@ -324,6 +347,10 @@ function init() {
   SECONDS=0 # Variable SECONDS will track execution time of the command
   
   LOG_LEVEL=${LOG_LEVEL:-'INFO'}
+ 
+  # TODO Can we find out the user index for keystore folder?
+  KEYSTORE_FOLDER=${KEYSTORE_FOLDER:-'/data/misc/keystore/user_0/'}
+
   if [[ ! "${LOG_LEVEL}" =~ ^(TRACE|INFO|WARN|OFF)$ ]]; then
     echo "WARNING: Unknown Log level '${LOG_LEVEL}'. Defaulting to INFO"
     LOG_LEVEL='INFO'
