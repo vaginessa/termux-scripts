@@ -72,15 +72,53 @@ function restoreApp() {
   fi
 
   if [[ "${APK}" != 'true' ]]; then
-    user=$(stat -c '%U' "/data/data/${packageName}")
-    group=$(stat -c '%G' "/data/data/${packageName}")
+    local userAndGroup
+    userAndGroup="$(stat -c '%U:%G' "/data/data/${packageName}")"
   
-    restoreFolder "${rootSrcFolder}" "data" "/data/data"
+    restoreFolder "${rootSrcFolder}" "data" "/data/data" "${userAndGroup}"
   
-    restoreFolder "${rootSrcFolder}" "sdcard" "/sdcard/Android/data"
+    restoreFolder "${rootSrcFolder}" "sdcard" "/sdcard/Android/data" "${userAndGroup}"
     
-    restoreFolder "${rootSrcFolder}" "sdcard-media" "/sdcard/Android/media"
+    restoreFolder "${rootSrcFolder}" "sdcard-media" "/sdcard/Android/media" "${userAndGroup}"
+    
+    # TODO option for skipping restore?
+    restoreKeys "${rootSrcFolder}" "${packageName}"
   fi
+}
+
+function restoreKeys() {
+  local rootSrcFolder="$1"
+  local packageName="$2"
+  local keyFiles
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  
+  restoreFolder "${rootSrcFolder}" "keys" "${tmpdir}"
+  # restoreFolder writes to subdir
+  tmpdir=${tmpdir}/${packageName}
+  
+  # TODO do we need sudo here?
+  oldAppUserId=$(find "${tmpdir}" -type f -printf "%f\n" | head -n1 | sed 's/\([0-9]*\).*/\1/')
+  if [[ -z "${oldAppUserId}" ]]; then
+    trace "No app user ID found could be parsed from files names in folder 'keys' for app ${packageName}. Skipping restoring keys" 
+    return
+  fi
+  
+  newAppUserId=$(findCurrentAppUserId "${packageName}") 
+  
+  if [[ "${oldAppUserId}" != "${newAppUserId}" ]]; then
+    trace "renaming key files prefix (userid) from ${oldAppUserId} to ${newAppUserId}"
+    rename "${oldAppUserId}" "${newAppUserId}" "${tmpdir}"/* "${tmpdir}"/.*
+  fi
+  
+  keyFiles="$(find "${tmpdir}" -type f)"
+  # Set UID and GID of current keystore folder
+  sudo chown -R "$(sudo stat -c "%U:%G" "${KEYSTORE_FOLDER}")" "${tmpdir}"
+  
+  trace "Restoring key files for app ${packageName} to ${KEYSTORE_FOLDER}: ${keyFiles}" 
+  # shellcheck disable=SC2086
+  # We actually do want word splitting here
+  sudo mv ${keyFiles} "${KEYSTORE_FOLDER}"
 }
 
 function restoreFolder() {
@@ -91,6 +129,9 @@ function restoreFolder() {
   local relativeSrcFolder="$2"
   # e.g. /data/data
   local rootDestFolder="$3"
+  # e.g. 'u0_a303:u0_a303'. Skipped if empty.
+  local userAndGroup=''
+  if (( $# >= 4 )); then userAndGroup="$4"; fi
   # e.g. com.nxp.taginfolite
   local packageName=${rootSrcFolder##*/}
   
@@ -101,10 +142,12 @@ function restoreFolder() {
 
 
   if [[ "$(checkActualSourceFolderExists "${actualSrcFolder}")" == 'true' ]]; then
-    trace "Restoring data to ${actualDestFolder}"
+    trace "Restoring data from ${actualSrcFolder} to ${actualDestFolder}"
     doSync "${actualSrcFolder}/" "${actualDestFolder}"
-    trace "Fixing owner/group ${user}:${group} in ${actualDestFolder}"
-    sudo chown -R "${user}:${group}" "${actualDestFolder}"
+    if [[ -n "${userAndGroup}" ]]; then
+      trace "Fixing owner/group ${userAndGroup} in ${actualDestFolder}"
+      sudo chown -R "${userAndGroup}" "${actualDestFolder}"
+    fi
   else
     info "Backup does not contain folder '${actualSrcFolder}'. Skipping"
   fi
@@ -137,6 +180,7 @@ function checkActualSourceFolderExists() {
 }
 
 function backupFolderSyncArgs() {
+  # TODO can't we find a single exclude that works with both rclone and rsync? Would increase maintainability drastically 
   if [[ "${RCLONE}" == 'true' ]]; then
     # Avoid fuss with whitespaces inside the filter rules by importing them from a file
     echo --filter-from="${LIB_DIR}/rclone-data-filter.txt"
