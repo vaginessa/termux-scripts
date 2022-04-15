@@ -73,7 +73,7 @@ function restoreApp() {
 
   if [[ "${APK}" != 'true' ]]; then
     local userAndGroup
-    userAndGroup="$(stat -c '%U:%G' "/data/data/${packageName}")"
+    userAndGroup="$(sudo stat -c '%U:%G' "/data/data/${packageName}")"
   
     restoreFolder "${rootSrcFolder}" "data" "/data/data" "${userAndGroup}"
   
@@ -97,8 +97,8 @@ function restoreKeys() {
   # restoreFolder writes to subdir
   tmpdir=${tmpdir}/${packageName}
   
-  # TODO do we need sudo here?
-  oldAppUserId=$(find "${tmpdir}" -type f -printf "%f\n" | head -n1 | sed 's/\([0-9]*\).*/\1/')
+  # Just pick one, but not the one starting eith . (revetsr sort)
+  oldAppUserId=$(sudo find "${tmpdir}" -type f -printf "%f\n" | sort -r | head -n1 | sed 's/\([0-9]*\).*/\1/')
   if [[ -z "${oldAppUserId}" ]]; then
     trace "No app user ID found could be parsed from files names in folder 'keys' for app ${packageName}. Skipping restoring keys" 
     return
@@ -237,7 +237,9 @@ function doRsync() {
     # e.g. execViaSsh user@host 'mkdir -p /a/b/c'
     sshFromEnv "$(removeDirFromSshExpression "${dst}")" "mkdir -p $(removeUserAndHostNameFromSshExpression "${dst}")"
   else
-    mkdir -p "${dst}"
+     # todo not necessary on restore. no access withput sudo to /data/data
+#	  mkdir -p "${dst}"
+echo todo
   fi
 
   if [[ "${src}" == *:* ]] || [[ "${dst}" == *:* ]]; then
