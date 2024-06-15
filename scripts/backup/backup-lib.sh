@@ -274,6 +274,9 @@ function installMultiple() {
     if [[ "${BYPASS_LOW_TARGET_SDK}" == 'true' ]]; then
       params+=("--bypass-low-target-sdk-block")
     fi
+    if [ -n "${INSTALLER_PACKAGE}" ]; then
+      params+=("-i ${INSTALLER_PACKAGE}")
+    fi
     installCreateOutput=$(sudo pm install-create -S ${totalApkSize} "${params[@]}")
     sessionId=$(echo "${installCreateOutput}" | grep -E -o '[0-9]+')
 
@@ -369,30 +372,28 @@ function readArgs() {
   EXCLUDE_PACKAGES=''
   START_AT_PACKAGE=''
   BYPASS_LOW_TARGET_SDK=''
+  INSTALLER_PACKAGE=''
   while [[ $# -gt 0 ]]; do
     ARG="$1"
     echo arg=$1
 
     case ${ARG} in
+    -i | --installer-package)
+      INSTALLER_PACKAGE="$2"; shift 2 ;;
     -d | --data)
-      DATA=true
-      shift ;;
+      DATA=true; shift ;;
     -a | --apk) 
-      APK=true
-      shift ;;
+      APK=true; shift ;;
     --rclone)
-      RCLONE=true
-      shift ;;
+      RCLONE=true; shift ;;
     --bypass-low-target-sdk-block)
-      BYPASS_LOW_TARGET_SDK=true
-      shift ;;
+      BYPASS_LOW_TARGET_SDK=true; shift ;;
     --exclude-packages)
       EXCLUDE_PACKAGES="$2"; shift 2 ;;
     --start-at)
       START_AT_PACKAGE="$2"; shift 2 ;;
     *) # Unknown or positional arg
-      POSITIONAL_ARGS+=("$1")
-      shift ;;
+      POSITIONAL_ARGS+=("$1"); shift ;;
     esac
   done
 }
