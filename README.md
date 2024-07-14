@@ -46,11 +46,11 @@ Starting from there, backups made with older versions can no longer be restored.
 
 ```shell
 # Install packages
-apt install termux-api tsu openssh
+pkg install termux-api tsu openssh
 # Either install
-apt install rsync
+pkg install rsync
 # or
-apt install rclone
+pkg install rclone
 
 # Fore remote backups, set up key
 ssh-keygen -t ecdsa -b 521
@@ -120,7 +120,7 @@ pkg install rsync
 rsync --stats --progress --human-readable -r --times $RSYNC_ARGS user@host:/my/folder/backup/com.termux/data/data/com.termux/files/home/ ~
 rsync --stats --progress --human-readable -r --times $RSYNC_ARGS user@host:/my/folder/backup/com.termux/data/data/com.termux/files/usr ../usr/
 # Packages are there but don't seem to work, so install them again
-for pkg in `dpkg --get-selections | awk '{print $1}' | egrep -v '(dpkg|apt|mysql|mythtv)'` ; do apt-get -y --force-yes install --reinstall $pkg ; done
+for pkg in `dpkg --get-selections | awk '{print $1}' | egrep -v '(dpkg|apt|pkg|mysql|mythtv)'` ; do pkg -y --force-yes install --reinstall $pkg ; done
 # If you have been using a different shell, re-enable it, for example:
 #chsh -s zsh
 ```
